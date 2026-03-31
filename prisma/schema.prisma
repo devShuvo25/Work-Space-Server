@@ -1,0 +1,260 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// --- CORE USER & AUTH ---
+model User {
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  email           String         @unique
+  password        String
+  role            UserRole       @default(FREELANCER)
+  status          UserStatus     @default(ACTIVE)
+  
+  // Verification
+  isEmailVerified Boolean        @default(false)
+  image           String?        // Profile picture URL
+  address         String?  
+  
+  // Relations
+  profile          Profile?       // Professional details
+  jobs             Job[]          // Jobs posted (if Client)
+  proposals        Proposal[]     // Proposals submitted (if Freelancer)
+
+// Messaging Relations
+  conversationIds  String[]       @db.ObjectId
+  conversations    Conversation[] @relation(fields: [conversationIds], references: [id])
+  
+  messagesSent     Message[]      @relation("SentMessages")
+  notifications Notification[] @relation("UserNotifications")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@map("users")
+}
+
+// --- PROFESSIONAL PROFILE ---
+model Profile {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @unique @db.ObjectId
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  headline     String?  
+  bio          String?
+  skills       String[] 
+  category     String?  
+  
+  // Freelancer Stats
+  rating       Float    @default(0.0)
+  reviewsCount Int      @default(0)
+  earnings     Float    @default(0.0)
+  successRate  Int      @default(100)
+  
+  // New Fields
+  languages    String[]  
+  hourlyRate   Float?
+  country      String? 
+  availability Boolean   @default(true)
+
+  // Social & Linked Accounts
+  linkedAccounts Json?     
+
+  // Relations (One-to-Many)
+  portfolios     Portfolio[]
+  education      Education[]
+  experience     Experience[]
+  certifications Certification[]
+  testimonials   Testimonial[]
+
+  @@map("profiles")
+}
+
+// Support Models for Complex Data
+
+model Portfolio {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  profileId    String   @db.ObjectId
+  profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title        String
+  startingDate DateTime?
+  endDate      DateTime?
+  description  String?
+  link         String?
+  imageUrl     String?
+}
+
+model Education {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  profileId    String   @db.ObjectId
+  profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  institution  String
+  degree       String
+  fieldOfStudy String?
+  startDate    DateTime
+  endDate      DateTime?
+}
+
+model Experience {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  profileId    String   @db.ObjectId
+  profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  company      String
+  position     String
+  startDate    DateTime
+  isCurrent    Boolean
+  endDate      DateTime?
+  description  String?
+}
+
+model Certification {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  profileId    String   @db.ObjectId
+  profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name         String
+  issuingOrg   String
+  issueDate    DateTime?
+  credentialId String?
+  media        String?
+  image        String?
+}
+
+model Testimonial {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  profileId    String   @db.ObjectId
+  profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  projectTitle String
+  clientName   String
+  clientRole   String?
+  content      String
+}
+
+// --- MARKETPLACE LOGIC ---
+model Job {
+  id              String      @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  description     String
+  budget          Float
+  budgetType      BudgetType  @default(FIXED)
+  category        String
+  skillsRequired  String[]
+  experienceLevel ExperienceLevel
+  status          JobStatus   @default(OPEN)
+  
+  clientId        String      @db.ObjectId
+  client          User        @relation(fields: [clientId], references: [id])
+  proposals       Proposal[]
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@map("jobs")
+}
+
+model Proposal {
+  id           String         @id @default(auto()) @map("_id") @db.ObjectId
+  coverLetter  String
+  bidAmount    Float
+  deliveryTime String         
+  status       ProposalStatus @default(PENDING)
+  
+  jobId        String         @db.ObjectId
+  job          Job            @relation(fields: [jobId], references: [id])
+  
+  freelancerId String         @db.ObjectId
+  freelancer   User           @relation(fields: [freelancerId], references: [id])
+
+  createdAt    DateTime       @default(now())
+
+  @@map("proposals")
+}
+
+model Conversation {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  participantIds String[]  @db.ObjectId
+  participants   User[]    @relation(fields: [participantIds], references: [id])
+  
+  messages       Message[]
+  lastMessage    String?
+  updatedAt      DateTime  @default(now())
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  content        String
+  
+  // senderId এবং sender রিলেশন
+  senderId       String       @db.ObjectId
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id])
+  
+  conversationId String       @db.ObjectId
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@map("messages")
+}
+model Notification {
+  // MongoDB uses @map("_id") and ObjectId type
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // These should be @db.ObjectId to match the User model's ID type
+  recipientId String   @db.ObjectId
+  senderId    String?  @db.ObjectId
+  
+  title       String
+  message     String
+  type        String   // e.g., "PROPOSAL", "MESSAGE", "SYSTEM"
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  recipient   User     @relation("UserNotifications", fields: [recipientId], references: [id])
+
+  // Optional: Indexing for faster lookups when a user checks their notifications
+  @@index([recipientId, createdAt])
+}
+// --- ENUMS ---
+enum UserRole {
+  CLIENT
+  FREELANCER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum BudgetType {
+  FIXED
+  HOURLY
+}
+
+enum JobStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ProposalStatus {
+  PENDING
+  REVIEWED
+  HIRED
+  REJECTED
+}
+
+enum ExperienceLevel {
+  ENTRY_LEVEL  
+  INTERMEDIATE 
+  EXPERT       
+}
