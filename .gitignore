@@ -1,6 +1,5 @@
 node_modules
 # Keep environment variables out of version control
-.env
 
 .vercel
 generate-module.ts
@@ -8,3 +7,4 @@ generate-module.ts
 # Build
 dist
 .env*.local
+config.bat
