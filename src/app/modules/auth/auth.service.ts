@@ -160,7 +160,10 @@ const client = new OAuth2Client(
 const googleSignIn = async (code: string) => {
   try {
     // 1. Data from google
-    const { tokens } = await client.getToken(code);
+    const { tokens } = await client.getToken({
+      code : code,
+      redirect_uri: 'postmessage',
+    });
     const ticket = await client.verifyIdToken({
       idToken: tokens.id_token as string,
       audience: config.OAuth.clientId,
